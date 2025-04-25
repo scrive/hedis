@@ -1,5 +1,5 @@
 name:               hedis
-version:            0.15.2
+version:            7.0.0
 synopsis:
     Client library for the Redis datastore: supports full command set,
     pipelining.
@@ -68,8 +68,23 @@ library
   if flag(dev)
     ghc-prof-options: -auto-all
   exposed-modules:  Database.Redis
-                  , Database.Redis.Sentinel
+                  , Database.Redis.Cluster
+                  , Database.Redis.Cluster.Command
+                  , Database.Redis.Cluster.HashSlot
+                  , Database.Redis.Commands
+                  , Database.Redis.Connection
+                  , Database.Redis.ConnectionContext
+                  , Database.Redis.Core
                   , Database.Redis.Core.Internal
+                  , Database.Redis.Hooks
+                  , Database.Redis.ManualCommands
+                  , Database.Redis.Protocol
+                  , Database.Redis.ProtocolPipelining
+                  , Database.Redis.PubSub
+                  , Database.Redis.Sentinel
+                  , Database.Redis.Transactions
+                  , Database.Redis.Types
+                  , Database.Redis.URL
   build-depends:    scanner >= 0.2,
                     async >= 2.1,
                     base >= 4.8 && < 5,
@@ -95,21 +110,6 @@ library
     build-depends:
       semigroups >= 0.11 && < 0.19
 
-  other-modules:    Database.Redis.Core,
-                    Database.Redis.Connection,
-                    Database.Redis.Cluster,
-                    Database.Redis.Cluster.HashSlot,
-                    Database.Redis.Cluster.Command,
-                    Database.Redis.ProtocolPipelining,
-                    Database.Redis.Protocol,
-                    Database.Redis.PubSub,
-                    Database.Redis.Transactions,
-                    Database.Redis.Types
-                    Database.Redis.Commands,
-                    Database.Redis.ManualCommands,
-                    Database.Redis.URL,
-                    Database.Redis.ConnectionContext,
-                    Database.Redis.Hooks
   other-extensions: StrictData
 
 benchmark hedis-benchmark
