@@ -18,6 +18,7 @@ import qualified Data.Time as Time
 import Network.TLS (ClientParams)
 import qualified Network.Socket as NS
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Text as T
 
 import qualified Database.Redis.ProtocolPipelining as PP
 import Database.Redis.Core(Redis, Hooks, runRedisInternal, runRedisClusteredInternal, defaultHooks)
@@ -45,8 +46,8 @@ import Database.Redis.Commands
 -- |A threadsafe pool of network connections to a Redis server. Use the
 --  'connect' function to create one.
 data Connection
-    = NonClusteredConnection (Pool PP.Connection)
-    | ClusteredConnection (MVar ShardMap) (Pool Cluster.Connection)
+    = NonClusteredConnection T.Text (Pool PP.Connection)
+    | ClusteredConnection T.Text (MVar ShardMap) (Pool Cluster.Connection)
 
 -- |Information for connnecting to a Redis server.
 --
@@ -89,6 +90,9 @@ data ConnectInfo = ConnInfo
     , connectTLSParams      :: Maybe ClientParams
     -- ^ Optional TLS parameters. TLS will be enabled if this is provided.
     , connectHooks          :: Hooks
+    -- ^ Connection hooks.
+    , connectLabel          :: T.Text
+    -- ^ Label of the connection pool for instrumentation.
     } deriving Show
 
 data ConnectError = ConnectAuthError Reply
@@ -111,6 +115,7 @@ instance Exception ConnectError
 --  connectTimeout        = Nothing         -- Don't add timeout logic
 --  connectTLSParams      = Nothing         -- Do not use TLS
 --  connectHooks          = defaultHooks    -- Do nothing
+--  connectLabel          = ""              -- no label
 -- @
 --
 defaultConnectInfo :: ConnectInfo
@@ -126,6 +131,7 @@ defaultConnectInfo = ConnInfo
     , connectTimeout        = Nothing
     , connectTLSParams      = Nothing
     , connectHooks          = defaultHooks
+    , connectLabel          = ""
     }
 
 createConnection :: ConnectInfo -> IO PP.Connection
@@ -159,7 +165,7 @@ createConnection ConnInfo{..} = do
 --  given 'ConnectInfo'. The first connection is not actually established
 --  until the first call to the server.
 connect :: ConnectInfo -> IO Connection
-connect cInfo@ConnInfo{..} = NonClusteredConnection <$>
+connect cInfo@ConnInfo{..} = NonClusteredConnection connectLabel <$>
     newPool (setNumStripes connectNumStripes $ defaultPoolConfig (createConnection cInfo) PP.disconnect (realToFrac connectMaxIdleTime) connectMaxConnections)
 
 -- |Constructs a 'Connection' pool to a Redis server designated by the
@@ -174,8 +180,8 @@ checkedConnect connInfo = do
 
 -- |Destroy all idle resources in the pool.
 disconnect :: Connection -> IO ()
-disconnect (NonClusteredConnection pool) = destroyAllResources pool
-disconnect (ClusteredConnection _ pool) = destroyAllResources pool
+disconnect (NonClusteredConnection _ pool) = destroyAllResources pool
+disconnect (ClusteredConnection _ _ pool) = destroyAllResources pool
 
 -- | Memory bracket around 'connect' and 'disconnect'.
 withConnect :: (Catch.MonadMask m, MonadIO m) => ConnectInfo -> (Connection -> m c) -> m c
@@ -191,9 +197,9 @@ withCheckedConnect connInfo = bracket (checkedConnect connInfo) disconnect
 --  pool and runs the given 'Redis' action. Calls to 'runRedis' may thus block
 --  while all connections from the pool are in use.
 runRedis :: Connection -> Redis a -> IO a
-runRedis (NonClusteredConnection pool) redis =
+runRedis (NonClusteredConnection _ pool) redis =
   withResource pool $ \conn -> runRedisInternal conn redis
-runRedis (ClusteredConnection _ pool) redis =
+runRedis (ClusteredConnection _ _ pool) redis =
     withResource pool $ \conn -> runRedisClusteredInternal conn (refreshShardMap conn) redis
 
 newtype ClusterConnectError = ClusterConnectError Reply
@@ -223,7 +229,7 @@ connectCluster bootstrapConnInfo = do
         Left e -> throwIO $ ClusterConnectError e
         Right infos -> do
             pool <- newPool (setNumStripes (connectNumStripes bootstrapConnInfo) $ defaultPoolConfig (Cluster.connect infos shardMapVar Nothing $ connectHooks bootstrapConnInfo) Cluster.disconnect (realToFrac $ connectMaxIdleTime bootstrapConnInfo) (connectMaxConnections bootstrapConnInfo))
-            return $ ClusteredConnection shardMapVar pool
+            return $ ClusteredConnection (connectLabel bootstrapConnInfo) shardMapVar pool
 
 shardMapFromClusterSlotsResponse :: ClusterSlotsResponse -> IO ShardMap
 shardMapFromClusterSlotsResponse ClusterSlotsResponse{..} = ShardMap <$> foldr mkShardMap (pure IntMap.empty)  clusterSlotsResponseEntries where
