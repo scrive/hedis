@@ -7,7 +7,7 @@ import Control.Concurrent.Async
 import Control.Exception
 import Data.Typeable
 import qualified Data.List
-import Data.Text
+import Data.Text (Text)
 import Data.ByteString
 import Control.Concurrent.STM
 import qualified Test.Framework as Test
