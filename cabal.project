@@ -1,7 +1,2 @@
 packages:
     ./
-
-source-repository-package
-    type: git
-    location: https://github.com/scrive/pool
-    tag: eeabc8746d4fa68063551d81bf9fa330c3396845
