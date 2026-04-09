@@ -446,7 +446,7 @@ testPubSub conn = testCase "pubSub" go conn
         -- producer
         asyncProducer <- liftIO $ Async.async $ do
             runRedis conn $ do
-                let t = 10^(5 :: Int)
+                let t = 10^(6 :: Int)
                 liftIO $ threadDelay t
                 publish "chan1" "hello" >>=? 1
                 liftIO $ threadDelay t

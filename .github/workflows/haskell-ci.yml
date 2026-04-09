@@ -34,6 +34,10 @@ jobs:
     container:
       image: buildpack-deps:jammy
     continue-on-error: ${{ matrix.allow-failure }}
+    services:
+      valkey:
+        image: "valkey/valkey:9"
+        options: --health-cmd "valkey-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     strategy:
       matrix:
         include:
@@ -223,6 +227,11 @@ jobs:
       - name: build
         run: |
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --write-ghc-environment-files=always
+      - name: tests
+        env:
+          REDIS_HOST: valkey
+        run: |
+          $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
       - name: doctest
         run: |
           cd ${PKGDIR_hedis} || false
