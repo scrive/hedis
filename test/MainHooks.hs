@@ -1,17 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import Data.Maybe
+import System.Environment
 import qualified Test.Framework.Providers.HUnit as Test (testCase)
 import qualified Test.Framework as Test
 import Database.Redis
 import Data.IORef
 import qualified Test.HUnit as HUnit
-import Control.Monad.IO.Class (MonadIO(liftIO))
+import Control.Monad.IO.Class
 
 main :: IO ()
 main = Test.defaultMain [testSetGet]
 
 data Counts =
-    Counts 
+    Counts
         { sendRequestCount :: Word
         , sendPubSubCount :: Word
         , callbackCount :: Word
@@ -23,7 +25,9 @@ data Counts =
 testCase :: String -> Counts -> Redis () -> Test.Test
 testCase name expected r = Test.testCase name $ do
     ref <- newIORef $ Counts 0 0 0 0 0
-    conn <- connect defaultConnectInfo {connectHooks = hooks ref}
+    host <- fromMaybe "localhost" <$> lookupEnv "REDIS_HOST"
+    port <- maybe 6379 read <$> lookupEnv "REDIS_PORT"
+    conn <- connect defaultConnectInfo {connectHost = host, connectPort = PortNumber port, connectHooks = hooks ref}
     t <- runRedis conn $ flushdb >>=? Ok >> r
     actual <- readIORef ref
     HUnit.assertEqual "count" expected actual

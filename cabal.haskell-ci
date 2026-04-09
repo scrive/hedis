@@ -4,8 +4,4 @@ doctest:         True
 doctest-version: ^>=0.24
 
 tests:           True
-
 benchmarks:      True
-
--- Some tests don't pass.
-run-tests:       False

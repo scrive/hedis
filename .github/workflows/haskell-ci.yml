@@ -34,6 +34,10 @@ jobs:
     container:
       image: buildpack-deps:jammy
     continue-on-error: ${{ matrix.allow-failure }}
+    services:
+      redis:
+        image: "redis:7"
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     strategy:
       matrix:
         include:
@@ -223,6 +227,11 @@ jobs:
       - name: build
         run: |
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --write-ghc-environment-files=always
+      - name: tests
+        env:
+          REDIS_HOST: redis
+        run: |
+          $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
       - name: doctest
         run: |
           cd ${PKGDIR_hedis} || false

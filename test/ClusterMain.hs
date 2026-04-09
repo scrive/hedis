@@ -6,8 +6,10 @@
 module Main (main) where
 
 import qualified Test.Framework as Test
+import Control.Exception
 import Data.ByteString (ByteString)
 import Database.Redis
+import System.Exit
 import Tests
 
 main :: IO ()
@@ -17,8 +19,12 @@ main = do
     -- spin up a cluster on this port using docker you can run:
     --
     --     docker run -e "IP=0.0.0.0" -p 7000-7010:7000-7010 grokzen/redis-cluster:5.0.6
-    conn <- connectCluster defaultConnectInfo { connectPort = PortNumber 7000 }
-    Test.defaultMain (tests conn)
+    result <- try @IOException $ connectCluster defaultConnectInfo { connectPort = PortNumber 7000 }
+    case result of
+        Left e -> do
+            putStrLn $ "Skipping cluster tests, no cluster available on port 7000: " ++ show e
+            exitSuccess
+        Right conn -> Test.defaultMain (tests conn)
 
 tests :: Connection -> [Test.Test]
 tests conn = map ($ conn) $ concat @[]
