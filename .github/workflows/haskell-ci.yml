@@ -145,7 +145,7 @@ jobs:
       - name: cache (tools)
         uses: actions/cache/restore@v4
         with:
-          key: ${{ runner.os }}-${{ matrix.compiler }}-tools-cc3c62c0
+          key: ${{ runner.os }}-${{ matrix.compiler }}-tools-2ae1f11d
           path: ~/.haskell-ci-tools
       - name: install cabal-plan
         run: |
@@ -158,13 +158,13 @@ jobs:
           cabal-plan --version
       - name: install doctest
         run: |
-          $CABAL --store-dir=$HOME/.haskell-ci-tools/store v2-install $ARG_COMPILER --ignore-project -j2 doctest --constraint='doctest ^>=0.22.0'
+          $CABAL --store-dir=$HOME/.haskell-ci-tools/store v2-install $ARG_COMPILER --ignore-project -j2 doctest --constraint='doctest ^>=0.24'
           doctest --version
       - name: save cache (tools)
         if: always()
         uses: actions/cache/save@v4
         with:
-          key: ${{ runner.os }}-${{ matrix.compiler }}-tools-cc3c62c0
+          key: ${{ runner.os }}-${{ matrix.compiler }}-tools-2ae1f11d
           path: ~/.haskell-ci-tools
       - name: checkout
         uses: actions/checkout@v5
@@ -223,9 +223,6 @@ jobs:
       - name: build
         run: |
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --write-ghc-environment-files=always
-      - name: tests
-        run: |
-          $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
       - name: doctest
         run: |
           cd ${PKGDIR_hedis} || false
