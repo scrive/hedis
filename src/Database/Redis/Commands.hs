@@ -79,12 +79,12 @@ hstrlen,
 hvals,
 
 -- ** HyperLogLogs
-pfadd, 
+pfadd,
 pfcount,
 pfmerge,
 
 -- ** Lists
-blpop, 
+blpop,
 blpopFloat,
 brpop,
 brpopFloat,
@@ -101,7 +101,7 @@ lrange,
 lrem,
 lset,
 ltrim,
-rpop, 
+rpop,
 rpopCount,
 rpoplpush,
 rpush,
@@ -256,7 +256,6 @@ XReadOpts(..),
 defaultXreadOpts,
 XReadResponse(..),
 StreamsRecord(..),
-TrimOpts(..),
 xadd,
 xaddOpts,
 XAddOpts(..),
@@ -267,6 +266,8 @@ trimOpts,
 xread, -- |Read values from a stream (<https://redis.io/commands/xread>). The Redis command @XREAD@ is split up into 'xread', 'xreadOpts'. Since Redis 5.0.0
 xreadOpts, -- |Read values from a stream (<https://redis.io/commands/xread>). The Redis command @XREAD@ is split up into 'xread', 'xreadOpts'. Since Redis 5.0.0
 xreadGroup, -- |Read values from a stream as part of a consumer group (https://redis.io/commands/xreadgroup). The redis command @XREADGROUP@ is split up into 'xreadGroup' and 'xreadGroupOpts'. Since Redis 5.0.0
+XReadGroupOpts(..),
+defaultXReadGroupOpts,
 xreadGroupOpts, -- |Read values from a stream as part of a consumer group (https://redis.io/commands/xreadgroup). The redis command @XREADGROUP@ is split up into 'xreadGroup' and 'xreadGroupOpts'. Since Redis 5.0.0
 xack, -- |Acknowledge receipt of a message as part of a consumer group. Since Redis 5.0.0
 
@@ -330,6 +331,9 @@ xinfoStream,
 xdel,
 xtrim,
 inf,
+ClusterInfoResponse (..),
+ClusterInfoResponseState (..),
+clusterInfo,
 ClusterNodesResponse(..),
 ClusterNodesResponseEntry(..),
 ClusterNodesResponseSlotSpec(..),
@@ -750,7 +754,7 @@ hdel
     -> m (f Integer)
 hdel key (field:|fields) = sendRequest ("HDEL":key:field:fields)
 
--- |Increment the float value of a key by the given amount (<http://redis.io/commands/incrbyfloat>). 
+-- |Increment the float value of a key by the given amount (<http://redis.io/commands/incrbyfloat>).
 -- Since Redis 2.6.0
 incrbyfloat
     :: (RedisCtx m f)
@@ -877,7 +881,7 @@ lpop key = sendRequest ["LPOP", encode key]
 -- Remove and get the first element in a list (<http://redis.io/commands/lpop>).
 -- The reply will consist of up to count elements, depending on the list's length.
 -- Since Redis 1.0.0
-lpopCount 
+lpopCount
     :: (RedisCtx m f)
     => ByteString -- ^ key
     -> Integer

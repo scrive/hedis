@@ -12,7 +12,7 @@
 #
 # REGENDATA ("0.19.20260331",["github","--config=cabal.haskell-ci","cabal.project"])
 #
-name: Haskell-CI
+name: Cluster test
 on:
   pull_request:
   push:
@@ -20,7 +20,7 @@ on:
       - master
 jobs:
   container-job:
-    name: Haskell-CI - Linux - ${{ matrix.compiler }}
+    name: Haskell-CI - Linux - GHC-9.12.4 — Redis 7
     runs-on: ubuntu-24.04
     timeout-minutes:
       20
@@ -30,27 +30,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - compiler: ghc-9.14.1
-            compilerKind: ghc
-            compilerVersion: 9.14.1
-            setup-method: ghcup
-            redis-version: 7
-            allow-failure: false
           - compiler: ghc-9.12.4
             compilerKind: ghc
             compilerVersion: 9.12.4
-            setup-method: ghcup
-            redis-version: 7
-            allow-failure: false
-          - compiler: ghc-9.10.3
-            compilerKind: ghc
-            compilerVersion: 9.10.3
-            setup-method: ghcup
-            redis-version: 7
-            allow-failure: false
-          - compiler: ghc-9.8.4
-            compilerKind: ghc
-            compilerVersion: 9.8.4
             setup-method: ghcup
             redis-version: 7
             allow-failure: false
@@ -206,52 +188,81 @@ jobs:
           $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: any.$_ installed\n" unless /^(hedis)$/; }' >> cabal.project.local
           cat cabal.project
           cat cabal.project.local
-      - name: dump install plan
-        run: |
-          $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH --dry-run all
-          cabal-plan
       - name: restore cache
         uses: actions/cache/restore@v4
         with:
-          key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}
+          key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}-cluster
           path: ~/.cabal/store
-          restore-keys: ${{ runner.os }}-${{ matrix.compiler }}-
+          restore-keys: ${{ runner.os }}-${{ matrix.compiler }}-cluster-
       - name: install dependencies
         run: |
-          $CABAL v2-build $ARG_COMPILER --disable-tests --disable-benchmarks --dependencies-only -j2 all
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH --dependencies-only -j2 all
-      - name: build w/o tests
-        run: |
-          $CABAL v2-build $ARG_COMPILER --disable-tests --disable-benchmarks all
       - name: build
         run: |
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --write-ghc-environment-files=always
-      - name: doctest
+      - name: Install redis
         run: |
-          cd ${PKGDIR_hedis} || false
-          doctest  -XHaskell2010 src
+          apt-get update
+          apt-get install -y curl gpg lsb-release
+
+          mkdir -p /etc/apt/keyrings
+
+          curl -fsSL https://packages.redis.io/gpg \
+            | gpg --dearmor -o /etc/apt/keyrings/redis-archive-keyring.gpg
+
+          chmod 644 /etc/apt/keyrings/redis-archive-keyring.gpg
+
+          echo "deb [signed-by=/etc/apt/keyrings/redis-archive-keyring.gpg] \
+            https://packages.redis.io/deb $(lsb_release -cs) main" \
+            > /etc/apt/sources.list.d/redis.list
+
+          apt-get update
+
+          apt-get install -y redis redis-tools
+
+          redis-server --version
+          redis-cli --version
+      - name: Start Redis Cluster
+        run: |
+          mkdir -p /redis-cluster
+
+          for port in 7000 7001 7002 7003 7004 7005; do
+            mkdir -p /redis-cluster/$port
+
+            cat > /redis-cluster/$port/redis.conf <<EOF
+          port $port
+          bind 0.0.0.0
+          cluster-enabled yes
+          cluster-config-file nodes.conf
+          cluster-node-timeout 5000
+          appendonly no
+          protected-mode no
+          dir /redis-cluster/$port
+          cluster-announce-ip 127.0.0.1
+          cluster-announce-port $port
+          cluster-announce-bus-port 1$port
+          EOF
+           redis-server /redis-cluster/$port/redis.conf &
+          done
+
+          sleep 5
+
+          yes yes | redis-cli --cluster create \
+            127.0.0.1:7000 \
+            127.0.0.1:7001 \
+            127.0.0.1:7002 \
+            127.0.0.1:7003 \
+            127.0.0.1:7004 \
+            127.0.0.1:7005 \
+            --cluster-replicas 1
       - name: hedis test
-        run: ${CABAL} v2-test test:hedis-test $ARG_COMPILER  --test-show-details=streaming
+        run: ${CABAL} v2-test -fcluster test:hedis-test-cluster $ARG_COMPILER  --test-show-details=streaming
         env:
-          REDIS_HOST: redis
-      - name: redis 7 test
-        run: ${CABAL} v2-test test:redis7 $ARG_COMPILER  --test-show-details=streaming
-        env:
-          REDIS_HOST: redis
-      - name: cabal check
-        run: |
-          cd ${PKGDIR_hedis} || false
-          ${CABAL} -vnormal check
-      - name: haddock
-        run: |
-          $CABAL v2-haddock --disable-documentation --haddock-all $ARG_COMPILER --with-haddock $HADDOCK $ARG_TESTS $ARG_BENCH all
-      - name: unconstrained build
-        run: |
-          rm -f cabal.project.local
-          $CABAL v2-build $ARG_COMPILER --disable-tests --disable-benchmarks all
+          REDIS_HOST: localhost
+          REDIS_PORT: 7000
       - name: save cache
         if: always()
         uses: actions/cache/save@v4
         with:
-          key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}
+          key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}-cluster
           path: ~/.cabal/store
